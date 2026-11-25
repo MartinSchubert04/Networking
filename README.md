@@ -21,28 +21,42 @@ Presupuesto de recursos en el server: 2 o 3 VMs prendidas a la vez (quedan ~9 GB
 
 ## Hoja de ruta
 
-| Fase | Tema | Estado |
-|---|---|---|
-| [01](01-fundamentos/) | Fundamentos observando mi propia red: TCP/IP, subredes, DNS, DHCP, ARP, Wireshark, nmap | ⬜ |
-| [02](02-redes-virtuales/) | Redes con Packet Tracer (curso CCNA de Jeremy's IT Lab); después, lo mismo con Linux real | ⬜ |
-| [03](03-firewall/) | Firewall y segmentación: OPNsense, NAT, WireGuard, Suricata | ⬜ |
-| [04](04-ataque/) | Ataque en el lab aislado: Kali, Metasploitable, DVWA, Juice Shop | ⬜ |
-| [05](05-defensa/) | Defensa sobre la red real: IDS, honeypot interno, hardening | ⬜ |
+| Fase | Tema |
+|---|---|
+| [01](01-fundamentos/) | Fundamentos observando mi propia red: TCP/IP, subredes, DNS, DHCP, ARP, Wireshark, nmap |
+| [02](02-redes-virtuales/) | Redes con Packet Tracer (curso CCNA de Jeremy's IT Lab); después, lo mismo con Linux real |
+| [03](03-firewall/) | Firewall y segmentación: OPNsense, NAT, WireGuard, Suricata |
+| [04](04-ataque/) | Ataque en el lab aislado: Kali, Metasploitable, DVWA, Juice Shop |
+| [05](05-defensa/) | Defensa sobre la red real: IDS, honeypot interno, hardening |
+| [Código](codigo/) | Redes en Rust: eco TCP, chat, escáner, cliente DNS, lector de capturas, HTTP |
+
+El progreso de cada fase se ve en la web (ver abajo).
 
 El ciclo que más enseña: **atacar algo en el lab → ver cómo se ve desde el lado defensivo → arreglarlo**.
 
-## En paralelo
+## Recursos
 
-- [TryHackMe](https://tryhackme.com): caminos *Pre Security* y después *Jr Penetration Tester*.
-- [OverTheWire Bandit](https://overthewire.org/wargames/bandit/): soltura con Linux.
-- [PicoCTF](https://picoctf.org): CTFs para principiantes.
-- [Jeremy's IT Lab](https://www.youtube.com/@JeremysITLab): curso gratis de CCNA con labs en Packet Tracer. Es la columna vertebral de la parte de redes.
+Todo el material (cursos, herramientas, máquinas vulnerables, Rust, homelab) está en [RECURSOS](RECURSOS.md). Para tener a mano: [comandos](referencia/comandos.md) y [subredes](referencia/subredes.md).
 
 Certificaciones, si algún día las quiero: Network+ o CCNA → Security+ → eJPT o PNPT.
+
+## Web
+
+Una web local para leer todo esto y tildar los ejercicios. Los checkboxes se guardan directo en los `.md`, así que el progreso queda en git.
+
+```powershell
+.\web.cmd                 # abre http://127.0.0.1:7730
+.\web.cmd --port 8000     # otro puerto
+```
+
+Solo necesita Python 3 (sin dependencias). Tiene búsqueda en todo el repo (`/` o `Ctrl+K`), índice de cada página, progreso por fase y sección, código con resaltado, y se actualiza sola si editás un `.md` en otro lado.
 
 ## Cómo está organizado
 
 - `0X-*/README.md`: ejercicios de cada fase, con checkboxes.
-- `02-redes-virtuales/labs/`: topologías y scripts reproducibles.
+- `02-redes-virtuales/labs/`: archivos de Packet Tracer y topologías reproducibles.
+- `codigo/`: workspace de Cargo con un crate por proyecto.
+- `referencia/`: chuletas.
+- `tools/web/`: la web.
 - `notas/`: lo que voy aprendiendo, con mis palabras.
 - `capturas/`: pcaps locales (no se suben).
