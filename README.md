@@ -8,7 +8,7 @@ Aprender redes y ciberseguridad haciendo, sobre mi propio home lab. Sin switches
 |---|---|
 | **Server** (Debian 13, i5-10400F, 16 GB, KVM) | Labs virtuales (namespaces, containerlab, VMs). Todo lo del lab vive en `/mnt/data/lab`, no en `/` (está casi lleno). |
 | **Hub** (Raspberry Pi 5) | Segundo nodo real de la red para capturar y escanear "desde otro lado". |
-| **Esta PC** (Windows) | Wireshark, Packet Tracer, GNS3 (ya instalado) y las notas. |
+| **Esta PC** (Windows) | **Packet Tracer** (herramienta principal para redes), Wireshark y las notas. |
 
 Presupuesto de recursos en el server: 2 o 3 VMs prendidas a la vez (quedan ~9 GB de RAM libres); containerlab es liviano.
 
@@ -24,7 +24,7 @@ Presupuesto de recursos en el server: 2 o 3 VMs prendidas a la vez (quedan ~9 GB
 | Fase | Tema | Estado |
 |---|---|---|
 | [01](01-fundamentos/) | Fundamentos observando mi propia red: TCP/IP, subredes, DNS, DHCP, ARP, Wireshark, nmap | ⬜ |
-| [02](02-redes-virtuales/) | Redes virtuales sin hardware: namespaces, bridges, VLANs, routing, containerlab | ⬜ |
+| [02](02-redes-virtuales/) | Redes con Packet Tracer (curso CCNA de Jeremy's IT Lab); después, lo mismo con Linux real | ⬜ |
 | [03](03-firewall/) | Firewall y segmentación: OPNsense, NAT, WireGuard, Suricata | ⬜ |
 | [04](04-ataque/) | Ataque en el lab aislado: Kali, Metasploitable, DVWA, Juice Shop | ⬜ |
 | [05](05-defensa/) | Defensa sobre la red real: IDS, honeypot interno, hardening | ⬜ |
@@ -36,7 +36,7 @@ El ciclo que más enseña: **atacar algo en el lab → ver cómo se ve desde el 
 - [TryHackMe](https://tryhackme.com): caminos *Pre Security* y después *Jr Penetration Tester*.
 - [OverTheWire Bandit](https://overthewire.org/wargames/bandit/): soltura con Linux.
 - [PicoCTF](https://picoctf.org): CTFs para principiantes.
-- Cisco Packet Tracer (gratis con cuenta de NetAcad) para la parte estilo CCNA.
+- [Jeremy's IT Lab](https://www.youtube.com/@JeremysITLab): curso gratis de CCNA con labs en Packet Tracer. Es la columna vertebral de la parte de redes.
 
 Certificaciones, si algún día las quiero: Network+ o CCNA → Security+ → eJPT o PNPT.
 
