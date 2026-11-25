@@ -7,7 +7,7 @@ Todo el material del repo en un solo lugar. ⭐ = por dónde empezar.
 | Recurso | Qué es | Para qué fase |
 |---|---|---|
 | ⭐ [Cisco Packet Tracer](https://www.netacad.com) | Simulador de redes de Cisco. Gratis con cuenta de NetAcad (sección *Resources*). Bajarlo **solo** de ahí. | 02 |
-| ⭐ [Jeremy's IT Lab](https://www.youtube.com/@JeremysITLab) | Curso gratis de CCNA 200-301 en YouTube. Cada "Day" tiene teoría + lab de Packet Tracer; los archivos del lab están en la descripción del video. | 01, 02 |
+| ⭐ [Jeremy's IT Lab](https://www.youtube.com/@JeremysITLab) | Curso gratis de CCNA 200-301 en YouTube ([playlist del curso](https://www.youtube.com/playlist?list=PLxbwE86jKRgMpuZuLBivzlM8s2Dk5lXBQ), 126 videos; también en la sección Videos de la web). Cada "Day" tiene teoría + lab de Packet Tracer; los archivos del lab están en la descripción del video. | 01, 02 |
 | [Getting Started with Cisco Packet Tracer](https://www.netacad.com) | Curso corto y gratis de NetAcad para aprender a usar el programa. | 02 |
 | [Exploring Networking with Cisco Packet Tracer](https://www.netacad.com) | Curso gratis de NetAcad (~3 h), complemento del anterior. | 02 |
 | [Professor Messer](https://www.professormesser.com) | Videos gratis de Network+ y Security+. Buen repaso de teoría. | 01, 05 |

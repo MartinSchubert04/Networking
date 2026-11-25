@@ -65,6 +65,12 @@ Una web local para leer todo esto y tildar los ejercicios. Los checkboxes se gua
 
 Solo necesita Python 3 (sin dependencias). Tiene búsqueda en todo el repo (`/` o `Ctrl+K`), índice de cada página, progreso por fase y sección, código con resaltado, y se actualiza sola si editás un `.md` en otro lado.
 
+**Videos** (`#/videos`): el curso CCNA de Jeremy's IT Lab con su reproductor, y cualquier otra lista o video de YouTube que agregues pegando el link. Recuerda en qué video y minuto quedaste (botón *Seguir donde quedé*, y tarjeta *Seguir viendo* en el inicio). Se guarda en `progreso/`:
+
+- `progreso/README.md`: resumen para leer de un vistazo (dónde quedé y cuánto llevo de cada lista).
+- `progreso/videos.json`: posición de cada video en segundos; `current` es dónde quedé.
+- `progreso/listas.json`: los videos de cada lista, en orden, con título y duración.
+
 ## Cómo está organizado
 
 - `0X-*/README.md`: ejercicios de cada fase, con checkboxes.
@@ -72,5 +78,6 @@ Solo necesita Python 3 (sin dependencias). Tiene búsqueda en todo el repo (`/` 
 - `codigo/`: workspace de Cargo con un crate por proyecto.
 - `referencia/`: chuletas.
 - `tools/web/`: la web.
+- `progreso/`: por dónde voy en los videos (lo escribe la web).
 - `notas/`: lo que voy aprendiendo, con mis palabras.
 - `capturas/`: pcaps locales (no se suben).
