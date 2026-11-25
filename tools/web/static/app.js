@@ -9,7 +9,7 @@ const FENCE_RE = /^\s*(`{3,}|~{3,})/;
 const CHECK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M3.5 8.5l3 3 6-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const LANG_ALIAS = { text: 'plaintext', txt: 'plaintext', sh: 'bash', shell: 'bash', console: 'bash', ps: 'powershell', ps1: 'powershell', toml: 'ini', rs: 'rust', yml: 'yaml', 'c++': 'cpp' };
 
-const state = { tree: null, files: new Map(), current: null, version: 0, polling: null };
+const state = { tree: null, files: new Map(), current: null, version: 0, polling: null, view: 'home' };
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fold = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -43,6 +43,8 @@ function hashFor(path, params) {
 
 function parseHash() {
   const h = location.hash.slice(1);
+  const v = h.match(/^\/videos(?:\/([^?]*))?(?:\?(.*))?$/);
+  if (v) return { view: 'videos', list: v[1] ? decodeURIComponent(v[1]) : null, params: new URLSearchParams(v[2] || '') };
   if (!h.startsWith('/f/')) return { view: 'home' };
   const rest = h.slice(3);
   const qi = rest.indexOf('?');
@@ -129,10 +131,10 @@ function groupTotals(g) {
 function renderSidebar() {
   const collapsed = store('collapsed') || {};
   const cur = state.current && state.current.path;
-  const home = !cur;
+  const home = state.view === 'home';
   let html = `<a class="nav-home${home ? ' active' : ''}" href="#/">
       <svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 11 12 4l9 7v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="currentColor"/></svg>
-      Progreso</a>`;
+      Progreso</a>${navVideos()}`;
   for (const g of state.tree.groups) {
     const { done, total, files } = groupTotals(g);
     const isCol = collapsed[g.key];
@@ -167,6 +169,7 @@ function renderSidebar() {
 
 function renderHome() {
   state.current = null;
+  setView('home');
   document.title = 'Networking Lab';
   renderSidebar();
   $('#toc').innerHTML = '';
@@ -231,6 +234,7 @@ function renderHome() {
       <div class="txt">${esc(next.file.next.text)}</div>
       <div class="ctx">${esc(next.group.label)}${next.file.next.section ? ' · ' + esc(next.file.next.section) : ''}</div></div>
       <span class="go">→</span></a>` : ''}
+    ${watchCard()}
     <h2 class="section-title">Fases</h2>
     <div class="cards">${cards}</div>
     <h2 class="section-title">Lectura</h2>
@@ -316,6 +320,7 @@ async function openFile(path, params = new URLSearchParams(), { keepScroll = fal
   }
   const scroll = window.scrollY;
   state.current = { path, data, params };
+  setView('file');
   const info = state.files.get(path);
   document.title = `${info ? info.title : path} · Networking Lab`;
   renderSidebar();
@@ -656,6 +661,606 @@ function setupSearch() {
   });
 }
 
+/* ================================================================ videos */
+
+const vids = { data: null, apiP: null, player: null, ready: false, pending: null, playing: null, shown: null, tick: null, lastSave: 0 };
+const YT_ERRORS = {
+  2: 'el link del video no es válido',
+  5: 'el navegador no pudo reproducirlo',
+  100: 'el video no existe o es privado',
+  101: 'el dueño no deja verlo fuera de YouTube',
+  150: 'el dueño no deja verlo fuera de YouTube',
+  152: 'YouTube no recibió el origen de la página',
+  153: 'YouTube no recibió el origen de la página',
+};
+const PLAY_SVG = '<svg viewBox="0 0 24 24" width="18" height="18"><rect x="2.5" y="5" width="19" height="14" rx="4" fill="currentColor"/><path d="m10 9 5 3-5 3z" fill="var(--bg)"/></svg>';
+const JSON_POST = (body, extra = {}) => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...extra });
+
+function fmtTime(sec) {
+  const t = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60;
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  return `${h ? h + ':' : ''}${mm}:${String(s).padStart(2, '0')}`;
+}
+
+async function loadVideos() {
+  try { vids.data = await api('/api/videos'); } catch (e) { vids.data = null; }
+  return vids.data;
+}
+
+const vList = (id) => (vids.data && id ? vids.data.lists.find((l) => l.id === id) : null) || null;
+const vProg = (id) => (vids.data && vids.data.progress[id]) || null;
+const vDur = (v) => v.duration || (vProg(v.id) || {}).duration || 0;
+const listHash = (id, params) => `#/videos/${encodeURIComponent(id)}${params ? '?' + new URLSearchParams(params) : ''}`;
+const ytLink = (vid, listId, at) => `https://www.youtube.com/watch?v=${encodeURIComponent(vid)}${listId && listId !== vid ? '&list=' + encodeURIComponent(listId) : ''}${at > 0 ? `&t=${Math.floor(at)}s` : ''}`;
+
+function listStats(l) {
+  let seen = 0, done = 0, total = 0;
+  for (const v of l.videos) {
+    const p = vProg(v.id) || {};
+    const dur = vDur(v);
+    if (p.watched) seen++;
+    if (dur) {
+      total += dur;
+      done += p.watched ? dur : Math.min(p.position || 0, dur);
+    }
+  }
+  const n = l.videos.length;
+  return { seen, count: n, percent: total ? Math.round((done * 100) / total) : pct(seen, n), total };
+}
+
+// Saca los pedazos "a | b | c" que se repiten en más de la mitad de los títulos
+// ("Free CCNA", "CCNA 200-301 Complete Course") para que la lista se lea mejor.
+function shortTitles(l) {
+  const segs = l.videos.map((v) => (v.title || v.id).split(' | ').map((x) => x.trim()));
+  const freq = new Map();
+  if (l.videos.length >= 4) segs.forEach((ss) => new Set(ss).forEach((x) => freq.set(x, (freq.get(x) || 0) + 1)));
+  return segs.map((ss, i) => {
+    const keep = ss.filter((x) => !((freq.get(x) || 0) > l.videos.length / 2));
+    return keep.length ? keep.join(' · ') : l.videos[i].title || l.videos[i].id;
+  });
+}
+
+function finished(id) {
+  const p = vProg(id);
+  return !!(p && p.watched && p.duration && p.position >= p.duration - 10);
+}
+
+// Segundo donde retomar un video: lo guardado, o 0 si nunca se empezó o ya se terminó.
+function resumeAt(id) {
+  const p = vProg(id);
+  if (!p || !p.position || p.position < 5 || finished(id)) return 0;
+  return p.position;
+}
+
+// Qué video sigue: el puntero "current" si es de esta lista (o el siguiente si ese ya terminó);
+// si no, el último empezado de la lista o el primero sin ver.
+function continueTarget(listId) {
+  const d = vids.data;
+  if (!d || !d.lists.length) return null;
+  const c = d.current;
+  const l = vList(listId) || (c && vList(c.list)) || vList(d.default) || d.lists[0];
+  const at = (i) => ({ list: l, index: i, at: resumeAt(l.videos[i].id) });
+  if (c && c.list === l.id) {
+    const i = l.videos.findIndex((v) => v.id === c.video);
+    if (i >= 0 && !finished(c.video)) return at(i);
+    if (i >= 0 && i + 1 < l.videos.length) return at(i + 1);
+  }
+  let best = -1;
+  l.videos.forEach((v, i) => {
+    const p = vProg(v.id);
+    if (p && p.position && !p.watched && (best < 0 || p.updated > vProg(l.videos[best].id).updated)) best = i;
+  });
+  if (best >= 0) return at(best);
+  const i = l.videos.findIndex((v) => !(vProg(v.id) || {}).watched);
+  return at(i < 0 ? 0 : i);
+}
+
+/* ---------- inicio y sidebar */
+
+function navVideos() {
+  const d = vids.data;
+  const l = d && (vList(d.default) || d.lists[0]);
+  const st = l ? listStats(l) : null;
+  return `<a class="nav-home nav-videos${state.view === 'videos' ? ' active' : ''}" id="navVideos" href="#/videos" title="${st ? `${st.percent}% de ${esc(l.title)}` : ''}">
+      ${PLAY_SVG}Videos${st ? ring(st.percent, 100) : ''}</a>`;
+}
+
+function watchCard() {
+  const t = continueTarget();
+  if (!t) return '';
+  const l = t.list, v = l.videos[t.index], st = listStats(l), dur = vDur(v);
+  const lbl = t.at ? 'Seguir viendo' : st.seen ? 'Próximo video' : 'Empezar el curso';
+  const where = `Video ${t.index + 1} de ${l.videos.length}${t.at ? ` · vas por ${fmtTime(t.at)}${dur ? ' de ' + fmtTime(dur) : ''}` : dur ? ` · ${fmtTime(dur)}` : ''}`;
+  return `<a class="watch-card" href="${listHash(l.id, { seguir: 1 })}">
+      <span class="thumb"><img src="https://i.ytimg.com/vi/${esc(v.id)}/mqdefault.jpg" alt="" loading="lazy">
+        <span class="thumb-play">${PLAY_SVG}</span>${t.at && dur ? `<span class="thumb-bar"><span style="width:${pct(t.at, dur)}%"></span></span>` : ''}</span>
+      <span class="wc-body"><span class="lbl">${lbl}</span>
+        <span class="txt">${esc(shortTitles(l)[t.index])}</span>
+        <span class="ctx">${esc(where)}</span>
+        <span class="wc-list"><span class="bar"><span style="width:${st.percent}%"></span></span><span>${st.percent}% · ${st.seen}/${st.count} vistos</span></span>
+      </span>
+      <span class="go">→</span></a>`;
+}
+
+/* ---------- página */
+
+function renderVideos(listId, params = new URLSearchParams()) {
+  const first = state.view !== 'videos' || !$('#vpage');
+  state.current = null;
+  setView('videos');
+  document.title = 'Videos · Networking Lab';
+  renderSidebar();
+  $('#toc').innerHTML = '';
+  window.onscroll = null;
+  document.body.classList.remove('nav-open');
+  const d = vids.data;
+  if (!d) {
+    $('#main').innerHTML = '<div class="empty">No pude leer <code>progreso/listas.json</code>. ¿Está corriendo el servidor?</div>';
+    return;
+  }
+  const l = vList(listId) || (d.current && vList(d.current.list)) || vList(d.default) || d.lists[0] || null;
+  vids.shown = l ? l.id : null;
+  if (first) {
+    $('#main').innerHTML = `<div id="vpage">
+      <div class="vhead" id="vhead"></div>
+      <div class="vtabs" id="vtabs"></div>
+      <form class="vadd" id="vadd" hidden>
+        <input id="vaddUrl" type="url" placeholder="Pegá un link de YouTube: una lista o un video" autocomplete="off" spellcheck="false" required>
+        <button class="btn primary" type="submit">Agregar</button>
+        <span class="vadd-status" id="vaddStatus"></span>
+      </form>
+      <div class="vgrid">
+        <section class="vleft">
+          <div class="vplayer"><div id="ytPlayer"></div><div class="vplayer-msg" id="vmsg" hidden></div></div>
+          <div class="vnow" id="vnow"></div>
+        </section>
+        <section class="vright" id="vlist"></section>
+      </div></div>`;
+    setupVideoEvents();
+    window.scrollTo(0, 0);
+    vids.tick = setInterval(onTick, 1000);
+  }
+  paintVideos();
+  const seguir = params.has('seguir');
+  if (seguir) history.replaceState(null, '', listHash(vids.shown));
+  if (first || seguir) {
+    const t = continueTarget(seguir ? null : vids.shown);
+    if (t) {
+      if (t.list.id !== vids.shown) location.hash = listHash(t.list.id);
+      startVideo(t.list.id, t.index, t.at, seguir);
+    }
+  }
+}
+
+function paintVideos() {
+  paintHead();
+  paintTabs();
+  paintList();
+  paintNow();
+}
+
+function paintHead() {
+  const box = $('#vhead');
+  if (!box) return;
+  const t = continueTarget();
+  let sub = 'Agregá una lista de YouTube para empezar.';
+  if (t) {
+    const title = esc(shortTitles(t.list)[t.index]);
+    sub = t.at
+      ? `Quedaste en el video ${t.index + 1} de ${t.list.videos.length}, <b>${title}</b>, a los ${fmtTime(t.at)}.`
+      : `Sigue el video ${t.index + 1} de ${t.list.videos.length}: <b>${title}</b>.`;
+  }
+  box.innerHTML = `<div class="vhead-text"><h1>Videos</h1><p>${sub}</p></div>
+    ${t ? `<button class="btn primary big" type="button" id="vcont">${PLAY_SVG}${t.at ? 'Seguir donde quedé' : 'Empezar'}</button>` : ''}`;
+}
+
+function paintTabs() {
+  const box = $('#vtabs');
+  if (!box) return;
+  const d = vids.data;
+  box.innerHTML = d.lists.map((l) => {
+    const st = listStats(l);
+    const x = l.id !== d.default ? `<button class="vtab-x" type="button" data-id="${esc(l.id)}" title="Quitar" aria-label="Quitar ${esc(l.title)}">×</button>` : '';
+    return `<span class="vtab${l.id === vids.shown ? ' active' : ''}"><a href="${listHash(l.id)}">${ring(st.percent, 100)}
+      <span class="t">${esc(l.title)}</span><span class="n">${l.kind === 'video' ? 'video' : `${st.seen}/${st.count}`}</span></a>${x}</span>`;
+  }).join('') + '<button class="vtab add" type="button" id="vaddBtn">+ Agregar</button>';
+}
+
+function rowHtml(l, v, i, title) {
+  const p = vProg(v.id) || {};
+  const dur = vDur(v);
+  const w = !!p.watched;
+  const pos = p.position || 0;
+  const partial = !w && pos > 0;
+  const playing = vids.playing && vids.playing.list === l.id && vids.playing.video === v.id;
+  const meta = w ? `Visto${dur ? ' · ' + fmtTime(dur) : ''}` : partial ? `Vas por ${fmtTime(pos)}${dur ? ' de ' + fmtTime(dur) : ''}` : dur ? fmtTime(dur) : '';
+  const fill = !w && dur ? pct(pos, dur) : 0;
+  return `<li class="vrow${w ? ' watched' : ''}${partial ? ' partial' : ''}${playing ? ' playing' : ''}" data-i="${i}" data-id="${esc(v.id)}">
+    <button class="vplay" type="button" title="${esc(v.title || v.id)}">
+      <span class="vnum">${playing ? PLAY_SVG : i + 1}</span>
+      <span class="vmain"><span class="vtitle">${esc(title)}</span><span class="vmeta">${meta}</span></span>
+      <span class="vbar"${fill ? '' : ' hidden'}><span style="width:${fill}%"></span></span>
+    </button>
+    <button class="vmark" type="button" aria-pressed="${w}" title="${w ? 'Marcar como no visto' : 'Marcar como visto'}">${CHECK_SVG}</button></li>`;
+}
+
+function paintList() {
+  const box = $('#vlist');
+  if (!box) return;
+  const l = vList(vids.shown);
+  if (!l) { box.innerHTML = '<div class="empty">No hay listas. Tocá <b>+ Agregar</b> y pegá un link de YouTube.</div>'; return; }
+  const st = listStats(l);
+  const titles = shortTitles(l);
+  const complete = st.seen === st.count ? ' complete' : '';
+  box.innerHTML = `<div class="vlist-head">
+      <div><h2>${esc(l.title)}</h2><div class="sub">${l.channel ? esc(l.channel) + ' · ' : ''}${st.count} video${st.count === 1 ? '' : 's'}${st.total ? ' · ' + fmtTime(st.total) : ''}</div></div>
+      <a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">YouTube ↗</a></div>
+    <div class="doc-progress${complete}"><div class="bar${complete}"><span style="width:${st.percent}%"></span></div>
+      <span class="lbl">${st.seen}/${st.count} · ${st.percent}%</span></div>
+    <ol class="vrows">${l.videos.map((v, i) => rowHtml(l, v, i, titles[i])).join('')}</ol>`;
+  const rows = $('.vrows', box);
+  const act = $('.vrow.playing', rows) || $('.vrow.partial', rows);
+  if (act && rows.scrollHeight > rows.clientHeight) rows.scrollTop = act.offsetTop - rows.clientHeight / 3;
+}
+
+function paintNow() {
+  const box = $('#vnow');
+  if (!box) return;
+  const cur = vids.playing;
+  const l = cur && vList(cur.list);
+  const i = l ? l.videos.findIndex((v) => v.id === cur.video) : -1;
+  if (i < 0) { box.innerHTML = ''; return; }
+  const v = l.videos[i];
+  box.innerHTML = `<div class="vnow-text">
+      <div class="lbl">${l.id !== vids.shown ? esc(l.title) + ' · ' : ''}Video ${i + 1} de ${l.videos.length}</div>
+      <div class="txt" title="${esc(v.title || v.id)}">${esc(shortTitles(l)[i])}</div>
+      <div class="ctx" id="vnowTime">${nowTime(v)}</div></div>
+    <div class="vnow-btns">
+      <button class="btn" type="button" id="vprev"${i === 0 ? ' disabled' : ''}>← Anterior</button>
+      <button class="btn" type="button" id="vnext"${i === l.videos.length - 1 ? ' disabled' : ''}>Siguiente →</button>
+      <a class="btn" id="vyt" href="${esc(ytLink(v.id, l.id, resumeAt(v.id)))}" target="_blank" rel="noopener">YouTube ↗</a></div>`;
+}
+
+function nowTime(v) {
+  const p = vids.player;
+  let pos = resumeAt(v.id), dur = vDur(v);
+  if (p && vids.ready && typeof p.getCurrentTime === 'function' && [1, 2, 3].includes(p.getPlayerState())) {
+    pos = p.getCurrentTime();
+    dur = p.getDuration() || dur;
+  }
+  const w = (vProg(v.id) || {}).watched ? ' · <span class="ok">✓ visto</span>' : '';
+  return `${fmtTime(pos)}${dur ? ' / ' + fmtTime(dur) : ''}${w}`;
+}
+
+function setupVideoEvents() {
+  const page = $('#vpage');
+  page.addEventListener('click', (e) => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    if (t.id === 'vcont') return continueWatching();
+    if (t.id === 'vaddBtn') {
+      const f = $('#vadd');
+      f.hidden = !f.hidden;
+      if (!f.hidden) $('#vaddUrl').focus();
+      return;
+    }
+    if (t.id === 'vprev' || t.id === 'vnext') {
+      const cur = vids.playing, l = cur && vList(cur.list);
+      if (!l) return;
+      const i = l.videos.findIndex((v) => v.id === cur.video) + (t.id === 'vnext' ? 1 : -1);
+      if (i >= 0 && i < l.videos.length) startVideo(l.id, i, resumeAt(l.videos[i].id), true);
+      return;
+    }
+    if (t.classList.contains('vtab-x')) return removeList(t.dataset.id);
+    const row = t.closest('.vrow');
+    if (!row) return;
+    const l = vList(vids.shown);
+    const i = +row.dataset.i;
+    if (t.classList.contains('vplay')) {
+      const cur = vids.playing;
+      if (cur && cur.list === l.id && cur.video === row.dataset.id && vids.ready && vids.player.getPlayerState() === 1) vids.player.pauseVideo();
+      else if (cur && cur.list === l.id && cur.video === row.dataset.id && vids.ready && [2, 5].includes(vids.player.getPlayerState())) vids.player.playVideo();
+      else startVideo(l.id, i, resumeAt(row.dataset.id), true);
+      if (matchMedia('(max-width: 1180px)').matches) $('.vplayer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (t.classList.contains('vmark')) {
+      markWatched(l.id, row.dataset.id, t.getAttribute('aria-pressed') !== 'true', t);
+    }
+  });
+  $('#vadd').addEventListener('submit', (e) => {
+    e.preventDefault();
+    addList($('#vaddUrl').value);
+  });
+}
+
+function continueWatching() {
+  const t = continueTarget();
+  if (!t) return;
+  if (t.list.id !== vids.shown) location.hash = listHash(t.list.id);
+  const cur = vids.playing;
+  const same = cur && cur.list === t.list.id && cur.video === t.list.videos[t.index].id && vids.ready;
+  if (same) vids.player.playVideo();
+  else startVideo(t.list.id, t.index, t.at, true);
+  $('.vplayer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ---------- reproductor */
+
+function loadYT() {
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (!vids.apiP) {
+    vids.apiP = new Promise((resolve, reject) => {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+      const s = document.createElement('script');
+      s.src = 'https://www.youtube.com/iframe_api';
+      s.onerror = () => { vids.apiP = null; s.remove(); reject(new Error('sin conexión')); };
+      document.head.append(s);
+    });
+  }
+  return vids.apiP;
+}
+
+function showMsg(html) {
+  const m = $('#vmsg');
+  if (!m) return;
+  m.innerHTML = html;
+  m.hidden = !html;
+}
+
+async function startVideo(listId, index, at, autoplay) {
+  const l = vList(listId);
+  if (!l || !l.videos[index]) return;
+  const v = l.videos[index];
+  saveProgress();
+  vids.playing = { list: listId, video: v.id };
+  paintNow();
+  paintList();
+  showMsg('');
+  try {
+    await loadYT();
+  } catch (e) {
+    showMsg(`No cargó el reproductor de YouTube (¿sin internet?). <a href="${esc(ytLink(v.id, l.id, at))}" target="_blank" rel="noopener">Abrir en YouTube ↗</a>`);
+    return;
+  }
+  if (state.view !== 'videos' || !vids.playing || vids.playing.video !== v.id) return;
+  const opts = { videoId: v.id, startSeconds: Math.floor(at || 0) };
+  if (vids.player && vids.ready) {
+    if (autoplay) vids.player.loadVideoById(opts);
+    else vids.player.cueVideoById(opts);
+    return;
+  }
+  if (vids.player) { vids.pending = { opts, autoplay }; return; }
+  vids.ready = false;
+  vids.player = new YT.Player('ytPlayer', {
+    width: '100%',
+    height: '100%',
+    videoId: v.id,
+    // origin: sin esto (o sin Referer) YouTube corta con error 152/153.
+    playerVars: { origin: location.origin, playsinline: 1, rel: 0, start: opts.startSeconds, autoplay: autoplay ? 1 : 0 },
+    events: {
+      onReady: () => {
+        vids.ready = true;
+        const p = vids.pending;
+        vids.pending = null;
+        if (p) (p.autoplay ? vids.player.loadVideoById(p.opts) : vids.player.cueVideoById(p.opts));
+      },
+      onStateChange: onYtState,
+      onError: onYtError,
+    },
+  });
+}
+
+function onYtState(e) {
+  const S = YT.PlayerState;
+  if (e.data === S.PLAYING) { showMsg(''); paintNow(); }
+  if (e.data === S.PAUSED) saveProgress();
+  if (e.data === S.ENDED) {
+    const cur = vids.playing;
+    saveProgress({ ended: true }).then(() => {
+      const l = cur && vList(cur.list);
+      if (!l || !vids.playing || vids.playing.video !== cur.video) return;
+      const i = l.videos.findIndex((v) => v.id === cur.video);
+      if (i >= 0 && i + 1 < l.videos.length) {
+        toast(`Visto ✓ Sigue el video ${i + 2}.`, 'win');
+        startVideo(l.id, i + 1, resumeAt(l.videos[i + 1].id), true);
+      } else {
+        toast('¡Terminaste la lista! 🎉', 'win');
+        const r = $('.vplayer').getBoundingClientRect();
+        confetti(r.left + r.width / 2, r.top + r.height / 2, 60, 260);
+      }
+    });
+  }
+}
+
+function onYtError(e) {
+  const cur = vids.playing;
+  const why = YT_ERRORS[e.data] || 'error desconocido';
+  const link = cur ? ` <a href="${esc(ytLink(cur.video, cur.list, resumeAt(cur.video)))}" target="_blank" rel="noopener">Abrir en YouTube ↗</a>` : '';
+  showMsg(`YouTube no lo reproduce acá: ${esc(why)} (error ${esc(e.data)}).${link}`);
+}
+
+function onTick() {
+  const p = vids.player;
+  if (!p || !vids.ready || typeof p.getPlayerState !== 'function') return;
+  if (p.getPlayerState() !== 1) return;
+  const cur = vids.playing, l = cur && vList(cur.list);
+  const v = l && l.videos.find((x) => x.id === cur.video);
+  const t = $('#vnowTime');
+  if (t && v) t.innerHTML = nowTime(v);
+  const row = l && l.id === vids.shown && $(`.vrow[data-id="${CSS.escape(cur.video)}"]`);
+  const dur = p.getDuration();
+  if (row && dur > 0) {
+    const bar = $('.vbar', row);
+    bar.hidden = false;
+    $('span', bar).style.width = `${pct(p.getCurrentTime(), dur)}%`;
+  }
+  if (Date.now() - vids.lastSave >= 10000) saveProgress();
+}
+
+// Lo que hay que guardar ahora, o null si el reproductor no tiene una posición confiable.
+function playerSnapshot() {
+  const p = vids.player, cur = vids.playing;
+  if (!p || !vids.ready || !cur || typeof p.getCurrentTime !== 'function') return null;
+  const st = p.getPlayerState();
+  if (st === -1 || st === 5) return null; // sin empezar o en cola
+  const vd = typeof p.getVideoData === 'function' ? p.getVideoData() : null;
+  if (vd && vd.video_id && vd.video_id !== cur.video) return null;
+  const body = { list: cur.list, video: cur.video, position: Math.max(0, Math.round(p.getCurrentTime() || 0)) };
+  const dur = p.getDuration();
+  if (dur > 0) body.duration = Math.round(dur);
+  return body;
+}
+
+function saveProgress(extra = {}, keepalive = false) {
+  const body = playerSnapshot();
+  if (!body) return Promise.resolve();
+  Object.assign(body, extra);
+  vids.lastSave = Date.now();
+  return fetch('/api/videos/progress', JSON_POST(body, { keepalive }))
+    .then((r) => (r.ok ? r.json() : null))
+    .then((res) => { if (res) applyProgress(res, body.list); })
+    .catch(() => { /* servidor apagado: se reintenta en el próximo guardado */ });
+}
+
+function applyProgress(res, listId) {
+  if (!vids.data) return;
+  const was = (vids.data.progress[res.video] || {}).watched;
+  vids.data.progress[res.video] = res.progress;
+  vids.data.current = res.current;
+  const l = vList(listId);
+  const v = l && l.videos.find((x) => x.id === res.video);
+  if (v && res.duration && !v.duration) v.duration = res.duration;
+  const nav = $('#navVideos');
+  if (nav) nav.outerHTML = navVideos();
+  if (state.view !== 'videos') return;
+  paintHead();
+  paintTabs();
+  if (l && l.id === vids.shown) {
+    const row = $(`.vrow[data-id="${CSS.escape(res.video)}"]`);
+    if (row) {
+      const i = +row.dataset.i;
+      row.outerHTML = rowHtml(l, v, i, shortTitles(l)[i]);
+    }
+    const st = listStats(l);
+    const prog = $('#vlist .doc-progress');
+    if (prog) {
+      $('.bar > span', prog).style.width = `${st.percent}%`;
+      $('.lbl', prog).textContent = `${st.seen}/${st.count} · ${st.percent}%`;
+    }
+  }
+  if (!was && res.progress.watched) paintNow();
+}
+
+async function markWatched(listId, vid, watched, btn) {
+  try {
+    const res = await api('/api/videos/progress', JSON_POST({ list: listId, video: vid, watched, current: false }));
+    applyProgress(res, listId);
+    paintNow();
+    if (watched && btn) {
+      const r = btn.getBoundingClientRect();
+      confetti(r.left + r.width / 2, r.top + r.height / 2, 10, 70);
+    }
+  } catch (e) {
+    toast(`No se pudo guardar: ${e.message}`, 'err');
+  }
+}
+
+function leaveVideos() {
+  saveProgress({}, true);
+  clearInterval(vids.tick);
+  vids.tick = null;
+  if (vids.player) { try { vids.player.destroy(); } catch (e) { /* ya no estaba */ } }
+  vids.player = null;
+  vids.ready = false;
+  vids.pending = null;
+  vids.playing = null;
+}
+
+/* ---------- agregar y quitar listas */
+
+// Saca los ids de una playlist con el propio reproductor de YouTube (no hace falta API key).
+async function playlistIds(listId) {
+  await loadYT();
+  return new Promise((resolve, reject) => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-10000px;top:0;width:320px;height:180px';
+    const inner = document.createElement('div');
+    host.append(inner);
+    document.body.append(host);
+    let done = false, iv = null, p = null;
+    const finish = (err, ids) => {
+      if (done) return;
+      done = true;
+      clearTimeout(to);
+      clearInterval(iv);
+      try { p.destroy(); } catch (e) { /* nada */ }
+      host.remove();
+      if (err) reject(err); else resolve(ids);
+    };
+    const to = setTimeout(() => finish(new Error('YouTube no devolvió la lista')), 20000);
+    p = new YT.Player(inner, {
+      width: 320,
+      height: 180,
+      playerVars: { listType: 'playlist', list: listId, origin: location.origin },
+      events: {
+        onReady: () => {
+          iv = setInterval(() => {
+            const ids = p.getPlaylist && p.getPlaylist();
+            if (ids && ids.length) finish(null, ids);
+          }, 300);
+        },
+        onError: (e) => finish(new Error(YT_ERRORS[e.data] || `error ${e.data}`)),
+      },
+    });
+  });
+}
+
+async function addList(url) {
+  const form = $('#vadd'), status = $('#vaddStatus'), btn = $('button', form);
+  btn.disabled = true;
+  status.textContent = 'Buscando…';
+  try {
+    let res = await api('/api/videos/lists', JSON_POST({ url }));
+    if (res.resolve === 'playlist') {
+      status.textContent = 'Leyendo la lista desde YouTube…';
+      const ids = await playlistIds(res.id);
+      status.textContent = `Buscando los títulos de ${ids.length} videos…`;
+      res = await api('/api/videos/lists', JSON_POST({ url, videos: ids }));
+    }
+    await loadVideos();
+    $('#vaddUrl').value = '';
+    form.hidden = true;
+    toast(`Agregada: ${res.list.title}`);
+    if (location.hash === listHash(res.list.id)) paintVideos();
+    else location.hash = listHash(res.list.id);
+  } catch (e) {
+    toast(`No se pudo agregar: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    status.textContent = '';
+  }
+}
+
+async function removeList(id) {
+  const l = vList(id);
+  if (!l || !confirm(`¿Quitar "${l.title}"? Lo que viste queda guardado por si la volvés a agregar.`)) return;
+  try {
+    if (vids.playing && vids.playing.list === id) await saveProgress();
+    await api('/api/videos/lists/remove', JSON_POST({ id }));
+    if (vids.playing && vids.playing.list === id) {
+      if (vids.player && vids.ready) vids.player.stopVideo();
+      vids.playing = null;
+    }
+    await loadVideos();
+    toast(`Quitada: ${l.title}`);
+    if (vids.shown === id) location.hash = '#/videos';
+    else paintVideos();
+  } catch (e) {
+    toast(`No se pudo quitar: ${e.message}`, 'err');
+  }
+}
+
 /* ================================================================ tema, menú, refresco */
 
 function setupChrome() {
@@ -676,16 +1281,27 @@ async function poll() {
     if (version <= state.version) return;
     await loadTree();
     const cur = state.current;
-    if (!cur) { renderHome(); return; }
+    if (!cur) {
+      if (state.view === 'home') renderHome();
+      else renderSidebar();
+      return;
+    }
     const f = state.files.get(cur.path);
     if (!f) { location.hash = '#/'; return; }
     if (f.mtime !== cur.data.mtime) openFile(cur.path, new URLSearchParams(), { keepScroll: true });
   } catch (e) { /* servidor apagado: reintenta */ }
 }
 
+function setView(view) {
+  state.view = view;
+  document.body.dataset.view = view;
+}
+
 function route() {
   const r = parseHash();
+  if (r.view !== 'videos' && state.view === 'videos') leaveVideos();
   if (r.view === 'file') openFile(r.path, r.params);
+  else if (r.view === 'videos') renderVideos(r.list, r.params);
   else renderHome();
 }
 
@@ -693,13 +1309,15 @@ async function init() {
   setupChrome();
   setupSearch();
   try {
-    await loadTree();
+    await Promise.all([loadTree(), loadVideos()]);
   } catch (e) {
     $('#main').innerHTML = '<div class="empty">No puedo hablar con el servidor. ¿Está corriendo <code>web.cmd</code>?</div>';
     return;
   }
   if (window.marked) marked.use({ gfm: true });
   window.addEventListener('hashchange', route);
+  window.addEventListener('pagehide', () => saveProgress({}, true));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveProgress({}, true); });
   route();
   setInterval(poll, 2500);
 }
