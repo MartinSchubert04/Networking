@@ -1,5 +1,17 @@
 {
   "about": "Lo escribe tools/web/server.py. Posiciones y duraciones en segundos. current = dónde quedé (index empieza en 1). Títulos en listas.json; resumen en README.md.",
-  "current": null,
-  "progress": {}
+  "current": {
+    "list": "PLxbwE86jKRgMpuZuLBivzlM8s2Dk5lXBQ",
+    "video": "a1Im6GYaSno",
+    "position": 4,
+    "index": 3,
+    "total": 126,
+    "title": "Free CCNA | Packet Tracer Introduction | Day 1 Lab | CCNA 200-301 Complete Course",
+    "updated": "2026-11-25T16:10:32-03:00"
+  },
+  "progress": {
+    "H8W9oMNSuwo": {"position": 0, "duration": 1826, "watched": true, "updated": "2026-11-25T15:47:10-03:00"},
+    "6Atw8oMtVTA": {"position": 0, "duration": 896, "watched": true, "updated": "2026-11-25T15:47:15-03:00"},
+    "a1Im6GYaSno": {"position": 4, "duration": 918, "watched": false, "updated": "2026-11-25T16:10:32-03:00"}
+  }
 }
