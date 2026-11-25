@@ -1,0 +1,26 @@
+# Capturas: pueden tener tráfico real de la casa (DNS, MQTT, credenciales en texto plano)
+capturas/*
+!capturas/.gitkeep
+*.pcap
+*.pcapng
+
+# Resultados de escaneos de la red real
+*.nmap
+*.gnmap
+*.xml.nmap
+
+# Imágenes de VMs y discos
+*.iso
+*.qcow2
+*.img
+*.ova
+*.vmdk
+
+# Estado de containerlab
+clab-*/
+.clab*
+
+# Secretos
+.env
+*.key
+*.pem
