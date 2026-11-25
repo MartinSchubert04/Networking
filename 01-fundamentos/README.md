@@ -16,11 +16,12 @@ Objetivo: entender qué pasa en mi red real, mirándola, antes de construir nada
 
 Los comandos se corren en el server (Debian 13), por SSH desde la PC. Antes, leer las [reglas del server](../README.md#reglas-para-el-server).
 
-- [ ] Entrar por SSH desde la PC (`ssh <usuario>@<server>`) y abrir una sesión de `tmux` para que no se corte si se cae la conexión
+- [ ] Entrar por SSH desde la PC (`ssh <usuario>@<server>`)
 - [ ] Crear la carpeta del lab: `mkdir -p /mnt/data/lab/capturas`
 - [ ] Entender qué hace `apt` antes de usarlo: `apt search`, `apt show tcpdump`, `apt policy nmap`
 - [ ] Instalar las herramientas: `sudo apt update && sudo apt install tcpdump nmap tshark mtr-tiny iperf3 tmux tealdeer` (después `tldr --update` para bajar los ejemplos)
-- [ ] Al instalar `tshark`, aceptar que usuarios sin root puedan capturar, y agregarme al grupo: `sudo usermod -aG wireshark $USER` (después, salir y volver a entrar)
+- [ ] Al instalar `tshark`, aceptar que usuarios sin root puedan capturar, y agregarme al grupo: `sudo usermod -aG wireshark $USER`. Salir y volver a entrar, y comprobar con `id` que aparece `wireshark`
+- [ ] Desde ahora, trabajar dentro de `tmux new -s lab` para que nada se corte si se cae la conexión
 - [ ] Aprender a pedir ayuda: `man ss`, `tldr tcpdump`, `ss --help`
 
 ## Ejercicios
