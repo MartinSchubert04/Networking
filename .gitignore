@@ -24,3 +24,6 @@ clab-*/
 .env
 *.key
 *.pem
+
+# Rust
+target/

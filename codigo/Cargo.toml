@@ -1,0 +1,10 @@
+[workspace]
+resolver = "3"
+members = [
+    "01-eco-tcp",
+    "02-chat",
+    "03-escaner",
+    "04-dns",
+    "05-capturas",
+    "06-http",
+]
