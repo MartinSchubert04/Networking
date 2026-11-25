@@ -12,14 +12,31 @@ Objetivo: entender qué pasa en mi red real, mirándola, antes de construir nada
 - [ ] TCP vs UDP, puertos, el handshake de TCP
 - [ ] Gateway y routing: cómo sale un paquete a otra red
 
+## Preparar el server
+
+Los comandos se corren en el server (Debian 13), por SSH desde la PC. Antes, leer las [reglas del server](../README.md#reglas-para-el-server).
+
+- [ ] Entrar por SSH desde la PC (`ssh <usuario>@<server>`) y abrir una sesión de `tmux` para que no se corte si se cae la conexión
+- [ ] Crear la carpeta del lab: `mkdir -p /mnt/data/lab/capturas`
+- [ ] Entender qué hace `apt` antes de usarlo: `apt search`, `apt show tcpdump`, `apt policy nmap`
+- [ ] Instalar las herramientas: `sudo apt update && sudo apt install tcpdump nmap tshark mtr-tiny iperf3 tmux tealdeer` (después `tldr --update` para bajar los ejemplos)
+- [ ] Al instalar `tshark`, aceptar que usuarios sin root puedan capturar, y agregarme al grupo: `sudo usermod -aG wireshark $USER` (después, salir y volver a entrar)
+- [ ] Aprender a pedir ayuda: `man ss`, `tldr tcpdump`, `ss --help`
+
 ## Ejercicios
 
-### Mi máquina
-- [ ] Ver mi IP, máscara, gateway y DNS (`ipconfig /all` en Windows, `ip a` / `ip r` en Linux)
-- [ ] Ver la tabla ARP (`arp -a`) y entender cada entrada
-- [ ] Ver qué puertos escucha el server (`ss -tlnp`) y qué proceso es cada uno
+### El server
+- [ ] Ver IP, máscara y MAC de cada interfaz (`ip -br a`, `ip a`) y entender qué es cada una (`lo`, `enp3s0`, `docker0`, `tailscale0`, los `veth`)
+- [ ] Ver la tabla de rutas (`ip r`) y encontrar el gateway
+- [ ] Ver qué DNS usa (`cat /etc/resolv.conf`)
+- [ ] Ver la tabla ARP (`ip neigh`) y entender cada entrada
+- [ ] Ver qué puertos escucha (`sudo ss -tlnp` y `sudo ss -ulnp`) y qué proceso o contenedor es cada uno (`docker ps`)
+- [ ] Ver los servicios del sistema (`systemctl list-units --type=service --state=running`) y los logs de uno (`journalctl -u tailscaled -n 50`)
+- [ ] Repetir los primeros tres desde la PC (`ipconfig /all`, `arp -a`, `route print`) y comparar
 
 ### Wireshark / tcpdump
+Capturar en el server con `tcpdump` y abrir los `.pcap` con Wireshark en la PC (ver [comandos](../referencia/comandos.md#wireshark-en-la-pc-capturando-en-el-server)).
+
 - [ ] Capturar un `ping` y encontrar el ARP previo y los ICMP
 - [ ] Capturar una consulta DNS (filtro `dns`) y su respuesta
 - [ ] Capturar el handshake TCP (SYN, SYN-ACK, ACK) de una conexión HTTP

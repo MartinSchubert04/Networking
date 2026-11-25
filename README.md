@@ -6,9 +6,9 @@ Aprender redes y ciberseguridad haciendo, sobre mi propio home lab. Sin switches
 
 | Máquina | Para qué |
 |---|---|
-| **Server** (Debian 13, i5-10400F, 16 GB, KVM) | Labs virtuales (namespaces, containerlab, VMs). Todo lo del lab vive en `/mnt/data/lab`, no en `/` (está casi lleno). |
+| **Server** (Debian 13, i5-10400F, 16 GB, KVM) | **Donde corro los comandos**, por SSH, para agarrarle la mano a Linux. También los labs virtuales (namespaces, containerlab, VMs). Todo lo del lab vive en `/mnt/data/lab`. |
 | **Hub** (Raspberry Pi 5) | Segundo nodo real de la red para capturar y escanear "desde otro lado". |
-| **Esta PC** (Windows) | **Packet Tracer** (herramienta principal para redes), Wireshark y las notas. |
+| **Esta PC** (Windows) | **Packet Tracer** (herramienta principal para redes), Wireshark para ver las capturas del server, y las notas. |
 
 Presupuesto de recursos en el server: 2 o 3 VMs prendidas a la vez (quedan ~9 GB de RAM libres); containerlab es liviano.
 
@@ -18,6 +18,20 @@ Presupuesto de recursos en el server: 2 o 3 VMs prendidas a la vez (quedan ~9 GB
 2. **El lab va aislado de la red real.** Las máquinas vulnerables (Metasploitable, DVWA, etc.) viven en una red virtual sin salida a la LAN ni a internet.
 3. **La red de casa es productiva** (AdGuard es el DNS de todos). Sobre ella solo observo y endurezco; los experimentos que rompen cosas van al lab.
 4. **Capturas y escaneos de la red real no se commitean** (`capturas/` y `*.pcap` están en `.gitignore`): pueden tener tráfico y credenciales.
+
+## Reglas para el server
+
+El server es productivo: AdGuard es el DNS de toda la casa y también corre Home Assistant. Cosas que lo pueden romper:
+
+| No hacer | Por qué | En su lugar |
+|---|---|---|
+| Tocar el firewall del host (`iptables -F`, `nft flush ruleset`, instalar `ufw`) | Docker arma sus redes con esas reglas: se caen todos los contenedores, AdGuard incluido, y la casa se queda sin DNS | Practicar firewall dentro de un namespace (`ip netns exec`) o en la VM de OPNsense |
+| Cambiar IP, rutas o bajar `enp3s0` (`ip addr`, `ip route`, `ip link set ... down`) | Se corta el SSH y no hay cómo volver sin ir al server | Todos los experimentos de red, en namespaces |
+| Guardar cosas en `/` | Está al 97% | Todo en `/mnt/data/lab` (94 GB libres) |
+| Capturar sin límite (`tcpdump -w` sin `-c`) | Llena el disco | Limitar con `-c 1000` o `-G`/`-W`, y escribir en `/mnt/data/lab/capturas` |
+| Correr con `sudo` algo copiado sin entenderlo | — | Leerlo antes con `man`, `tldr` o [explainshell](https://explainshell.com) |
+
+Mirar es siempre seguro: `ip`, `ss`, `tcpdump`, `dig`, `docker ps`, `systemctl status`, `journalctl` no cambian nada.
 
 ## Hoja de ruta
 

@@ -15,7 +15,20 @@ cargo check                 # compilar todo sin generar binarios
 cargo test -p dns           # tests de un proyecto
 ```
 
-Del 01 al 04 y el 06 corren en Windows. El 05 con captura en vivo y el 07 necesitan Linux: WSL (Ubuntu 24.04) o el server.
+### Dónde correrlo
+
+Conviene en el **server**: es Linux, ahí están las herramientas para comparar (tcpdump, nmap, dig), y el 05 con captura en vivo y el 07 solo andan en Linux. También corre en Windows (del 01 al 04 y el 06).
+
+Rust todavía no está instalado en el server, y `/` está casi lleno, así que va en `/mnt/data`:
+
+```bash
+export RUSTUP_HOME=/mnt/data/rust/rustup CARGO_HOME=/mnt/data/rust/cargo
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# agregar esas dos variables y "source /mnt/data/rust/cargo/env" al final de ~/.bashrc
+cd /mnt/data/lab && git clone https://github.com/MartinSchubert04/Networking.git
+```
+
+Para editar: VS Code en la PC con la extensión **Remote - SSH**, abriendo la carpeta del server. Se edita como si fuera local y la terminal integrada corre en el server.
 
 Antes de arrancar conviene leer los capítulos 1 a 9 del [Rust Book](https://doc.rust-lang.org/book/) y hacer los ejercicios equivalentes de Rustlings. Ver [RECURSOS](../RECURSOS.md).
 

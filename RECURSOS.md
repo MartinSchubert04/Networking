@@ -13,12 +13,22 @@ Todo el material del repo en un solo lugar. ⭐ = por dónde empezar.
 | [Professor Messer](https://www.professormesser.com) | Videos gratis de Network+ y Security+. Buen repaso de teoría. | 01, 05 |
 | [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/) | La mejor explicación de cómo funcionan los sockets por dentro (en C). | código |
 
+## Linux y Debian
+
+| Recurso | Qué es |
+|---|---|
+| ⭐ [The Linux Command Line](https://linuxcommand.org/tlcl.php) | Libro gratis de William Shotts: la terminal desde cero hasta scripts. |
+| [OverTheWire Bandit](https://overthewire.org/wargames/bandit/) | Wargame por SSH: la mejor práctica de terminal que hay. |
+| [The Debian Administrator's Handbook](https://debian-handbook.info) | Libro gratis sobre administrar Debian: apt, servicios, red, seguridad. |
+| [tldr pages](https://tldr.sh) | Ejemplos cortos de cada comando (`tldr tcpdump`). |
+| [explainshell](https://explainshell.com) | Pegás un comando y te explica cada parte. Usarlo antes de correr algo copiado. |
+| [VS Code Remote - SSH](https://code.visualstudio.com/docs/remote/ssh) | Editar archivos del server desde VS Code en la PC. |
+
 ## Ciberseguridad práctica
 
 | Recurso | Qué es |
 |---|---|
 | ⭐ [TryHackMe](https://tryhackme.com) | Cursos guiados con máquinas en el navegador. Empezar por *Pre Security*, después *Jr Penetration Tester*. |
-| [OverTheWire Bandit](https://overthewire.org/wargames/bandit/) | Wargame por SSH para agarrar soltura con Linux. |
 | [PicoCTF](https://picoctf.org) | CTFs para principiantes, con práctica todo el año. |
 | [Hack The Box Academy](https://academy.hackthebox.com) | Módulos más profundos, para después de TryHackMe. |
 
