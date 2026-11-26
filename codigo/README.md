@@ -41,8 +41,8 @@ Antes de arrancar conviene leer los capítulos 1 a 9 del [Rust Book](https://doc
 **Redes:** sockets, TCP, `bind` / `listen` / `accept`, puertos.
 **Rust:** ownership, `Result` y `?`, `std::net`, leer argumentos.
 
-- [ ] Servidor que escucha en `127.0.0.1:7000` y devuelve lo que recibe
-- [ ] Probarlo con `telnet` o `ncat` antes de escribir el cliente
+- [x] Servidor que escucha en `127.0.0.1:7000` y devuelve lo que recibe
+- [x] Probarlo con `telnet` o `ncat` antes de escribir el cliente
 - [ ] Cliente que manda una línea y muestra la respuesta
 - [ ] Capturar la conexión con Wireshark y encontrar el handshake (SYN, SYN-ACK, ACK) y el cierre (FIN)
 - [ ] ¿Qué pasa si se conectan dos clientes a la vez? Anotar por qué
